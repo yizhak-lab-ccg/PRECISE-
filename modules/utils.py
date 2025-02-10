@@ -43,3 +43,4 @@ def validate_response_column(adata, response_col):
 
     # Map 'R'/'NR' to 1/0 if necessary
     adata.obs[response_col] = adata.obs[response_col].map({"R": 1, "NR": 0, 1:1, 0:0})
+    adata.obs[response_col] = adata.obs[response_col].astype(int)

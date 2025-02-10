@@ -1,14 +1,12 @@
 import os
 import json
 import numpy as np
-import pandas as pd
 from boruta import BorutaPy
-from xgboost import XGBClassifier
 from utils import validate_anndata, validate_response_column
 
 
 class BorutaAnalyzer:
-    def __init__(self, adata, celltype = None, output_dir="../results", response_col="response", sample_col="sample", verbose=True):
+    def __init__(self, adata, model, model_name, celltype = None, output_dir="../results", response_col="response", sample_col="sample", verbose=True):
         """
         Initialize the BorutaAnalyzer.
 
@@ -20,6 +18,8 @@ class BorutaAnalyzer:
             verbose (bool): Whether to print detailed logs.
         """
         self.adata = adata
+        self.model = model
+        self.model_name = model_name
         self.celltype = celltype
         self.output_dir = output_dir
         self.response_col = response_col
@@ -52,6 +52,9 @@ class BorutaAnalyzer:
             dict: Dictionary of chosen features.
             pd.DataFrame (optional): Prediction results on test AnnData if provided.
         """
+        if self.model_name not in ['XGBClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
+            raise ValueError(f"Model {self.model_name} is not supported for Boruta analysis.")
+
         # Validate AnnData and columns
         validate_anndata(self.adata, [self.response_col, self.sample_col])
         validate_response_column(self.adata, self.response_col)
@@ -69,9 +72,17 @@ class BorutaAnalyzer:
         X = adata.to_df().values
         y = adata.obs[self.response_col].values
 
-        # Configure XGBoost with class balancing
-        scale_pos_weight = sum(y == 0) / sum(y == 1)
-        estimator = estimator if estimator else XGBClassifier(max_depth=7, learning_rate=0.2, scale_pos_weight=scale_pos_weight)
+
+        estimator = self.model.model
+        # Monkey-patch np.int to avoid deprecation issue
+        if not hasattr(np, "int"):  
+            np.int = int
+        
+        if not hasattr(np, "bool"):  
+            np.bool = bool
+
+        if not hasattr(np, "float"):  
+            np.float = float
 
         # Run Boruta
         feat_selector = BorutaPy(estimator, n_estimators="auto", verbose=2 if self.verbose else 0, random_state=1)

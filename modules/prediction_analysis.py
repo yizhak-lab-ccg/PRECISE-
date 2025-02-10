@@ -1,10 +1,13 @@
+import copy
 import os
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
-from xgb_estimator import XGBEstimator
+from sklearn.model_selection import StratifiedKFold, LeaveOneOut
+
+# from xgb_estimator import XGBEstimator
 from utils import (
     validate_anndata,
     validate_response_column,
@@ -16,7 +19,7 @@ from utils import (
 
 
 class PredictionAnalyzer:
-    def __init__(self, adata, celltype=None, target_column="response", sample_column="sample", results_folder="../results", plots_folder='plots', verbose=True):
+    def __init__(self, adata, model, model_name, celltype=None, target_column="response", sample_column="sample", results_folder="../results", plots_folder='plots', verbose=True):
         """
         Initialize the LOO Prediction Analyzer.
 
@@ -33,6 +36,8 @@ class PredictionAnalyzer:
         self.plots_folder = os.path.join(results_folder, plots_folder)
         self.importance_folder = os.path.join(results_folder, "importance_scores_" +celltype if celltype else "importance_scores")
         self.verbose = verbose
+        self.model_name = model_name
+        self.model = model
 
         # Default colormap for feature plots
         self.default_colormap = LinearSegmentedColormap.from_list(
@@ -62,6 +67,7 @@ class PredictionAnalyzer:
         validate_anndata(test_adata, [self.sample_column])
         validate_response_column(train_adata, self.target_column)
 
+        celltype = self.celltype if celltype is None else celltype
         # Filter by cell type if specified
         if celltype:
             print(f"Filtering for cell type: {celltype}.")
@@ -81,10 +87,10 @@ class PredictionAnalyzer:
         scores = {}
 
         # Prepare training data
-        X_train, y_train = train_adata.to_df(), train_adata.obs[self.target_column].values
+        X_train, y_train = train_adata.X, train_adata.obs[self.target_column].values
 
         # Train the model
-        estimator = XGBEstimator(max_depth=6)
+        estimator = copy.deepcopy(self.model)
         estimator.fit(X_train, y_train)
 
         # Save feature importances
@@ -95,7 +101,7 @@ class PredictionAnalyzer:
 
         # Iterate over samples in the test data
         for sample in test_adata.obs[self.sample_column].unique():
-            sample_data = test_adata[test_adata.obs[self.sample_column] == sample].to_df()
+            sample_data = test_adata[test_adata.obs[self.sample_column] == sample].X
             
             # Make predictions
             predictions = estimator.predict(sample_data)
@@ -105,70 +111,142 @@ class PredictionAnalyzer:
         return (scores, feature_importance_df)
 
 
-    def run_loo_prediction(self):
+    def cv_prediction(self, k_folds=None, seed=None, weighted_prediction = False, sample_column = 'sample_name', response_column = 'response', celltype = None, save_adata_with_predictions = False, verbose=None):
         """
-        Perform Leave-One-Out (LOO) prediction.
+        Perform either K-Fold cross-validation or Leave-One-Out (LOO) prediction with stratification
+        at the sample level for binary classification.
 
         Parameters:
-            target_column (str): Column in `obs` containing response labels.
-            sample_column (str): Column in `obs` containing sample identifiers.
+        - adata: AnnData object containing single-cell data.
+        - output_folder: Path to the output folder.
+        - k_folds: Number of folds for cross-validation (default: None, which uses LOO).
+        - seed: Random seed for reproducibility (default: None).
+        - verbose: Whether to print progress and results (default: True).
 
         Returns:
-            pd.DataFrame: DataFrame containing prediction results.
-            float: ROC AUC score across all samples.
+        - results_df: DataFrame containing fold-level results.
+        - auc_score: Overall AUC score.
+        - estimators: List of trained estimators.
         """
+        if verbose is None:
+            verbose = self.verbose
+        
+        # Ensure output directory for feature importances exists
+        importance_folder = self.importance_folder
+        os.makedirs(importance_folder, exist_ok=True)
+
         validate_anndata(self.adata, [self.target_column, self.sample_column])
         validate_response_column(self.adata, self.target_column)
 
+        celltype = self.celltype if celltype is None else celltype
         adata = self.adata.copy()
-        if self.celltype:
+        if celltype:
             if self.verbose:
-                print(f"Filtering for cell type: {self.celltype}.")
-            adata = adata[adata.obs[self.celltype] == 1]           
+                print(f"Filtering for cell type: {celltype}.")
+            adata = adata[adata.obs[celltype] == 1]           
 
         if self.verbose:
             print(f"Starting LOO Prediction with {adata.shape[0]} cells and {adata.shape[1]} features.")
             print(f"Sample column: {self.sample_column}, Target column: {self.target_column}.")
+        adata = self.adata
+        # Extract sample-level labels
+        sample_labels = adata.obs.groupby(sample_column)[response_column].mean()
+        sample_names = sample_labels.index
+        sample_responses = sample_labels.values
 
-        scores, labels, results = [], [], []
-        unique_samples = adata.obs[self.sample_column].unique()
+        # Choose cross-validation strategy
+        if k_folds is None:
+            cv = LeaveOneOut()
+            n_splits = cv.get_n_splits(sample_names)
+            if verbose:
+                print(f"Using Leave-One-Out cross-validation with {n_splits} splits.")
+        else:
+            cv = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=seed)
+            if verbose:
+                print(f"Using {k_folds}-Fold cross-validation with stratification.")
 
-        for sample in unique_samples:
-            train_set = adata[adata.obs[self.sample_column] != sample]
-            test_set = adata[adata.obs[self.sample_column] == sample]
+        # Initialize results containers
+        sample_scores = []
+        sample_labels = []
+        estimators = []
+        predictions = []
+        results = []
+        adata.obs_names_make_unique()
 
-            if self.verbose:
-                print(f"Processing sample: {sample} with {train_set.shape[0]} train cells and {test_set.shape[0]} test cells.")
+        adata.obs['prediction'] = -1
+        adata.obs['proba_prediction'] = -1
+        for fold_idx, (train_idx, test_idx) in enumerate(cv.split(sample_names, sample_responses)):
+            train_samples = sample_names[train_idx]
+            test_samples = sample_names[test_idx]
 
-            X_train, y_train = train_set.to_df(), train_set.obs[self.target_column].values
-            X_test, y_test = test_set.to_df(), test_set.obs[self.target_column].values
+            train_set = adata[adata.obs[sample_column].isin(train_samples)]
+            test_set = adata[adata.obs[sample_column].isin(test_samples)]
+            test_set.obs = test_set.obs.copy()
 
-            # Train the model
-            estimator = XGBEstimator(max_depth=6)
-            estimator.fit(X_train, y_train)
+            # Prepare data for training and testing
+            X_train, y_train = train_set.X, train_set.obs[self.target_column].values
+            X_test, y_test = test_set.X, test_set.obs[self.target_column].values
+            
+            model = copy.deepcopy(self.model)
+            model.fit(X_train, y_train)
+            estimators.append(model)
 
-            # Save feature importances
-            feature_importance_df = pd.DataFrame({
-                "Feature": X_train.columns,
-                "Importance": estimator.get_feature_importances()
-            }).sort_values(by="Importance", ascending=False)
-            feature_importance_file = os.path.join(self.importance_folder, f"{sample}_feature_importance.csv")
-            feature_importance_df.to_csv(feature_importance_file)
-            if self.verbose:
-                print(f"Feature importances saved to {feature_importance_file}.")
+            if hasattr(model, "feature_importances_") and model.feature_importances_ is not None:
+                # Extract feature names from adata.var if available
+                feature_names = train_set.var_names.tolist()  # Feature names from adata
 
+                # Create a DataFrame with feature importances
+                feature_importance_df = pd.DataFrame({
+                    "Feature": feature_names,
+                    "Importance": model.feature_importances_,
+                }).sort_values(by="Importance", ascending=False)
+
+                # Save to CSV
+                feature_importance_df.to_csv(
+                    os.path.join(importance_folder, f"fold_{fold_idx + 1}_feature_importances.csv"),
+                    index=False,
+                )
+
+            y_pred = model.predict(X_test)
+            y_pred_prob = model.predict_proba(X_test)
             # Make predictions
-            predictions_test = estimator.predict(X_test)
-            scores.append(np.mean(predictions_test))
-            labels.append(int(np.mean(y_test)))
-            results.append((sample, int(np.mean(y_test)), np.mean(predictions_test)))
+            test_set.obs["proba_prediction"] = y_pred_prob
+            test_set.obs["prediction"] = y_pred
 
-        auc_score = roc_auc_score(labels, scores)
-        if self.verbose:
-            print(f"Overall ROC AUC: {auc_score:.4f}")
+            # Append results to the main AnnData object
+            adata.obs.loc[test_set.obs.index, "proba_prediction"] = y_pred_prob
+            adata.obs.loc[test_set.obs.index, "prediction"] = y_pred
 
-        results_df = pd.DataFrame(results, columns=["Sample", "Label", "Score"])
-        return (results_df, auc_score)
+            prediction_column = "prediction"
+            if weighted_prediction:
+                prediction_column = "proba_prediction"
+            
+            mean_score_per_sample = test_set.obs.groupby(sample_column)[prediction_column].mean()
+            mean_label_per_sample = test_set.obs.groupby(sample_column)[response_column].mean()
+
+            sample_scores.extend(mean_score_per_sample)
+            sample_labels.extend(mean_label_per_sample)
+            results.extend([(fold_idx + 1, sample, label, score) for sample, label, score in zip(mean_score_per_sample.index, mean_label_per_sample, mean_score_per_sample)])
+
+            if verbose:
+                print(f"Fold {fold_idx + 1}: Processed {len(mean_score_per_sample)} samples.")
+                print(mean_score_per_sample.index, mean_label_per_sample, mean_score_per_sample)
+
+        # Save results
+        results_df = pd.DataFrame(results, columns=["Fold", "Sample", "Label", "Score"])
+        results_file = os.path.join(self.results_folder, "loo_results.csv" if k_folds is None else "kfold_results.csv")
+        results_df.to_csv(results_file, index=False)
+
+        # Calculate overall AUC
+        auc_score = roc_auc_score(sample_labels, sample_scores)
+        if verbose:
+            print(f"Overall AUC: {auc_score:.4f}")
+        if save_adata_with_predictions:
+            adata.obs['prediction'] = adata.obs['prediction'].astype('int')
+            adata.obs['proba_prediction'] = adata.obs['proba_prediction'].astype('float')
+            adata.write(os.path.join(self.results_folder, 'adata_with_prediction.h5ad'))
+        return (results_df, auc_score, estimators)
+
 
     def feature_importance_colored_bar(self, top_n_features, colormap=None, save_path=None):
         """
@@ -179,6 +257,8 @@ class PredictionAnalyzer:
             colormap (str or Colormap): Colormap for the bars (uses default if None).
             save_path (str): Path to save the plot.
         """
+        if hasattr(self.model, 'feature_importances_'):
+            raise NotImplementedError("The model does not support feature importances.")
         top_n_features = top_n_features.sort_values(by="Importance", ascending=False)
         norm = plt.Normalize(top_n_features["Importance"].min(), top_n_features["Importance"].max())
         colors = (plt.get_cmap(colormap) if colormap else self.default_colormap)(norm(top_n_features["Importance"]))
@@ -198,19 +278,22 @@ class PredictionAnalyzer:
         
         plt.show()
         plt.close()
-        
+    
 
     def create_feature_plots(self, n_intersecting_genes = 500):
         """
         Generate feature importance and intersection plots using default settings.
         """
+        if hasattr(self.model, 'feature_importances_'):
+            raise NotImplementedError("The model does not support feature importances.")
         try:
             files = os.listdir(self.importance_folder)
+            files = [file for file in files if file.endswith(".csv")]
             features_lists, df_lists = [], []
 
             # Load feature importances
             for file in files:
-                temp_df = pd.read_csv(os.path.join(self.importance_folder, file), index_col=0)
+                temp_df = pd.read_csv(os.path.join(self.importance_folder, file))
                 df_lists.append(temp_df)
                 features_lists.append(temp_df["Feature"].values)
 
@@ -269,6 +352,8 @@ class PredictionAnalyzer:
         Returns:
         - set: A set of intersecting features containing at least k features.
         """
+        if hasattr(self.model, 'feature_importances_'):
+            raise NotImplementedError("The model does not support feature importances.")
         try:
             # Validate importance folder
             if not os.path.exists(self.importance_folder):
@@ -282,7 +367,7 @@ class PredictionAnalyzer:
 
             # Load feature importance
             for file in files:
-                temp_df = pd.read_csv(os.path.join(self.importance_folder, file), index_col=0)
+                temp_df = pd.read_csv(os.path.join(self.importance_folder, file))
                 if "Feature" not in temp_df.columns:
                     raise ValueError(f"Feature column missing in {file}.")
                 features_lists.append(temp_df["Feature"].values)

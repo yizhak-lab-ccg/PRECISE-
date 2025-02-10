@@ -1,46 +1,16 @@
+import copy
 import os
 import json
 from matplotlib import cm
 import numpy as np
 import pandas as pd
-from xgboost import XGBRegressor
 import matplotlib.pyplot as plt
 from utils import DPI, TITLE_FONT_SIZE, AXIS_LABELS_FONT_SIZE, AXIS_TICKS_FONT_SIZE, validate_anndata, validate_response_column
 
 
-class Regressor:
-    def __init__(self, max_depth=6, nthread=8, verbose=False):
-        """
-        A wrapper for XGBoost regression with simplified initialization.
-        """
-        self.max_depth = max_depth
-        self.nthread = nthread
-        self.verbose = verbose
-        self._regressor = XGBRegressor(
-            max_depth=self.max_depth,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            nthread=self.nthread,
-            objective="reg:squarederror",
-        )
-
-    def fit(self, X, y):
-        """
-        Fit the regressor to the data.
-        """
-
-        self._regressor.fit(X, y, verbose=self.verbose)
-        return self
-
-    def predict(self, X):
-        """
-        Predict using the trained regressor.
-        """
-        return self._regressor.predict(X)
-
 
 class ReinforcementLearningAnalyzer:
-    def __init__(self, adata, output_dir="../results", plots_dir = 'plots', target_column="response", sample_column="sample", celltype=None, verbose=True):
+    def __init__(self, adata, model, model_name, output_dir="../results", plots_dir = 'plots', target_column="response", sample_column="sample", celltype=None, verbose=True):
         """
         Initialize the ReinforcementLearningAnalyzer.
 
@@ -50,12 +20,15 @@ class ReinforcementLearningAnalyzer:
             verbose (bool): Whether to print progress.
         """
         self.adata = adata.copy()
+        self.model = model
+        self.model_name = model_name
         self.output_dir = output_dir
         self.plots_dir = os.path.join(output_dir, plots_dir)
         self.verbose = verbose
         self.celltype = celltype
         self.target_column=target_column
         self.sample_column=sample_column
+        
 
     def run_reinforcement_learning(
         self,
@@ -66,6 +39,9 @@ class ReinforcementLearningAnalyzer:
         """
         Perform reinforcement learning on the AnnData object to compute cell-level labels.
         """
+        if not self.model.is_regressor:
+            raise ValueError(f"Model {self.model_name} is not supported for RL analysis.")
+
         adata = self.adata
 
         # Subset by cell type if provided
@@ -105,7 +81,7 @@ class ReinforcementLearningAnalyzer:
                 X_train, y_train = train_set.to_df(), train_set.obs[rl_scores].values
                 X_test = test_set.to_df()
 
-                regressor = Regressor()
+                regressor = copy.deepcopy(self.model)
                 regressor.fit(X_train, y_train)
 
                 predictions = regressor.predict(X_test)
