@@ -36,28 +36,19 @@ Precise builds upon methods described in our preprint on bioRxiv: [10.1101/2024.
 
 ## Installation
 
-### Prerequisites
-- Python 3.8
-- Required libraries and their versions:
-  - `scanpy==1.8.1`
-  - `xgboost==1.7.1`
-  - `shap==0.44.1`
-  - `matplotlib==3.3.3`
-  - `seaborn==0.13.0`
-  - `pandas==1.5.3`
-  - `numpy==1.23.5`
-  - `scikit-learn==1.3.2`
+### 🔧 Using Conda (Recommended)
 
-### Installation Steps
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/asafpinhasitechnion/precise.git
-   cd precise
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+git clone https://github.com/asafpinhasitechnion/precise.git
+cd precise
+```
+
+2. Create and activate the environment:
+```bash
+conda env create -f environment.yml
+conda activate precise_env
+```
 
 ---
 
