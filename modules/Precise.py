@@ -37,6 +37,7 @@ class Precise:
             'cell_type': None,
             "input_dim": self.adata.shape[1],  # Set input dimension dynamically
             'use_gpu': False,
+            'model_name': model_name
         }
         
         for key, default_value in defaults.items():
@@ -91,7 +92,7 @@ class Precise:
         self.boruta_analyzer = BorutaAnalyzer(self.adata, output_dir=self.output_dir, verbose=verbose)
         return self.boruta_analyzer.run_boruta()
 
-    def run_reinforcement_learning(self, model = None, model_name = None, chosen_features=None, n_iters=200, learning_rate=0.1, verbose = False):
+    def run_reinforcement_learning(self, model_name = None, chosen_features=None, n_iters=200, learning_rate=0.1, verbose = False):
         """
         Run reinforcement learning analysis.
         
@@ -100,9 +101,8 @@ class Precise:
             learning_rate (float): Learning rate for RL updates.
             chosen_features (list): Features to include in RL analysis.
         """
-        if not model:
-            model = get_model(self.args.model_name, self.args, is_regressor=True)
-        self.rl_analyzer = ReinforcementLearningAnalyzer(self.adata, model, self.args.model_name, output_dir=self.output_dir, verbose=verbose)
+        model = get_model(self.args.model_name, self.args, is_regressor=True)
+        self.rl_analyzer = ReinforcementLearningAnalyzer(self.adata, model, self.args.model_name.replace('Classifier', ''), output_dir=self.output_dir, verbose=verbose)
         return self.rl_analyzer.run_reinforcement_learning(n_iters=n_iters, learning_rate=learning_rate, chosen_features=chosen_features)
     
     def get_rl_distribution(self, iter = None):

@@ -208,9 +208,9 @@ def get_model(model_name, args, is_regressor=False):
     max_depth = getattr(args, 'max_depth', None)
 
     model_mapping = {
-        "LogisticRegression": SklearnModelWrapper(LogisticRegression(max_iter=1000)),
-        "RandomForest": SklearnModelWrapper(RandomForestRegressor(max_depth=max_depth, random_state=42)) if is_regressor else 
-                        SklearnModelWrapper(RandomForestClassifier(max_depth=max_depth, random_state=42)),
+        "LogisticRegression": SklearnModelWrapper(LogisticRegression(max_iter=1000), is_regressor=is_regressor),
+        "RandomForest": SklearnModelWrapper(RandomForestRegressor(max_depth=max_depth, random_state=42), is_regressor=is_regressor) if is_regressor else 
+                        SklearnModelWrapper(RandomForestClassifier(max_depth=max_depth, random_state=42), is_regressor=is_regressor),
         # "XGBoost": SklearnModelWrapper(
         #     XGBRegressor(max_depth=max_depth, random_state=42, tree_method=tree_method, device=device), use_gpu=use_gpu
         # ) if is_regressor else SklearnModelWrapper(
@@ -218,18 +218,18 @@ def get_model(model_name, args, is_regressor=False):
         # ),
         "XGBoost": SklearnModelWrapper(
             XGBRegressor(max_depth=max_depth, random_state=42, tree_method="gpu_hist" if use_gpu else "hist"), 
-            use_gpu=use_gpu
+            use_gpu=use_gpu, is_regressor=is_regressor
         ) if is_regressor else SklearnModelWrapper(
             XGBClassifier(max_depth=max_depth, random_state=42, tree_method="gpu_hist" if use_gpu else "hist"), 
-            use_gpu=use_gpu
+            use_gpu=use_gpu, is_regressor=is_regressor
         ),
         "LightGBM": SklearnModelWrapper(
-            LGBMRegressor(max_depth=max_depth, random_state=42, verbose=-1)
+            LGBMRegressor(max_depth=max_depth, random_state=42, verbose=-1), is_regressor=is_regressor
         ) if is_regressor else SklearnModelWrapper(
-            LGBMClassifier(max_depth=max_depth, random_state=42, verbose=-1)
+            LGBMClassifier(max_depth=max_depth, random_state=42, verbose=-1), is_regressor=is_regressor
         ),
-        "LinearRegression": SklearnModelWrapper(LinearRegression()),
-        "DecisionTreeClassifier": SklearnModelWrapper(DecisionTreeClassifier(max_depth=max_depth, random_state=42)),
+        "LinearRegression": SklearnModelWrapper(LinearRegression(), is_regressor=is_regressor),
+        "DecisionTreeClassifier": SklearnModelWrapper(DecisionTreeClassifier(max_depth=max_depth, random_state=42), is_regressor=is_regressor),
     }
 
     if base_name.startswith("NeuralNet_"):
