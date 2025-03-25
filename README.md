@@ -1,5 +1,5 @@
 
-# Precise: Predictive Response Analysis from Single-Cell Expression
+# PRECISE: Predicting therapy Response through Extraction of Cells and genes from Immune Single-cell Expression data
 
 [![DOI](https://img.shields.io/badge/bioRxiv-10.1101%2F2024.11.16.623986v1-blue)](https://www.biorxiv.org/content/10.1101/2024.11.16.623986v1)
 
