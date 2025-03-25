@@ -62,41 +62,17 @@ conda activate precise_env
 #### 1. **BorutaAnalyzer**
    - Performs feature selection using Boruta with an XGBoost classifier.
    - Outputs selected features for downstream analysis.
-   - Example:
-     ```python
-     from boruta_analysis import BorutaAnalyzer
-     analyzer = BorutaAnalyzer(adata)
-     subset_adata, chosen_features, _ = analyzer.run_boruta()
-     ```
 
 #### 2. **SHAPVisualizer**
    - Generates SHAP-based feature importance plots.
-   - Example:
-     ```python
-     from shap_analysis import SHAPVisualizer
-     shap_vis = SHAPVisualizer(adata)
-     shap_vis.shapely_score_barplot(top_k=20)
-     ```
 
 #### 3. **ReinforcementLearningAnalyzer**
    - Refines predictions iteratively using reinforcement learning.
    - Outputs updated cell-level scores.
-   - Example:
-     ```python
-     from reinforcement_learning import ReinforcementLearningAnalyzer
-     rl_analyzer = ReinforcementLearningAnalyzer(adata)
-     refined_adata = rl_analyzer.run_reinforcement_learning()
-     ```
 
 #### 4. **PredictionAnalyzer**
    - Conducts predictive modeling and leave-one-out (LOO) cross-validation.
    - Outputs feature importance scores and prediction results.
-   - Example:
-     ```python
-     from xgboost_analysis import PredictionAnalyzer
-     pred_analyzer = PredictionAnalyzer(adata)
-     results_df, auc = pred_analyzer.run_loo_prediction()
-     ```
 
 ---
 
@@ -125,24 +101,21 @@ All outputs are saved in the specified `output_dir` (default: `../results`).
 from Precise import Precise
 import scanpy as sc
 
-# Load your preprocessed AnnData object
 adata = sc.read_h5ad("path_to_your_data.h5ad")
-
-# Initialize the Precise framework
 precise = Precise(adata, output_dir="./results", target_column="response", sample_column="sample")
 
-# Run Boruta feature selection
+# Step 1: Boruta feature selection
 _, chosen_features, _ = precise.run_boruta()
 
-# Run reinforcement learning
+# Step 2: Reinforcement learning
 refined_adata = precise.run_reinforcement_learning(chosen_features=chosen_features)
 
-# Generate SHAP visualizations
+# Step 3: SHAP visualization
 precise.run_shap_visualizations(top_k=20)
 
-# Perform LOO prediction
+# Step 4: Leave-One-Out (LOO) prediction
 results, auc_score = precise.run_loo_prediction()
-print(f"LOO ROC AUC: {auc_score}")
+print(f"LOO ROC AUC: {auc_score:.3f}")
 ```
 
 ---
