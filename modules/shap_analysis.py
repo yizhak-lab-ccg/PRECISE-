@@ -6,7 +6,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 from ML_models import get_model
-from xgb_estimator import XGBEstimator
 from utils import validate_anndata, validate_response_column
 
 
@@ -36,18 +35,23 @@ class SHAPVisualizer:
         self.gene_names = list(self.df.columns)
         self.colormap = colormap
         os.makedirs(self.output_dir, exist_ok=True)
+        if args.use_gpu:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            device = "cpu"
 
-        if self.model_name in ['XGBClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
-            self.explainer = shap.TreeExplainer(self.model)
+        if self.model_name in ['XGBoostClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
+            self.explainer = shap.TreeExplainer(model)
             self.shap_values = self.explainer.shap_values(self.df)
             if self.model_name == 'LightGBMClassifier':
                 self.shap_values = self.shap_values[1]
+        
         elif 'Neural' in self.model_name:
-            tensor_df = torch.tensor(self.df.values, dtype=torch.float32)
-            self.explainer = shap.DeepExplainer(self.model.model, tensor_df)
+            tensor_df = torch.tensor(self.df.values, dtype=torch.float32, device=device)
+            self.explainer = shap.DeepExplainer(model.model, tensor_df)
             self.shap_values = self.explainer.shap_values(tensor_df)
         else:
-            self.explainer = shap.Explainer(self.model, self.df)
+            self.explainer = shap.Explainer(model, self.df)
             self.shap_values = self.explainer(self.df).values
             
 
@@ -76,8 +80,9 @@ class SHAPVisualizer:
             plt.savefig(save_path, dpi=300)
             print(f"Bar plot saved to {save_path}")
             plt.close()
-        else:
-            plt.show()
+        
+        plt.show()
+        plt.close()
 
 
     def shap_summary_plot(self, max_display=20, save_path=None):
@@ -106,8 +111,9 @@ class SHAPVisualizer:
             plt.savefig(save_path, dpi=300)
             plt.close()
             print(f"Summary plot saved to {save_path}")
-        else:
-            plt.show()
+        
+        plt.show()
+        plt.close()
 
     def shap_dependence_plot(self, gene1, gene2=None, save_path=None):
         """
@@ -176,17 +182,19 @@ class SHAPVisualizer:
         ce = get_model(self.model_name, self.args)
         ce.fit(df, sdata.obs[self.target_column])
 
+        exp = None
         # Select SHAP Explainer
         if self.model_name in ['XGBoostClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
             explainer = shap.TreeExplainer(ce.model, df)
         elif 'Neural' in self.model_name:
-            explainer = shap.DeepExplainer(ce.model, df)
+            tensor_df = torch.tensor(self.df.values, dtype=torch.float32)
+            explainer = shap.DeepExplainer(ce.model, tensor_df)
+            exp = explainer.shap_values(torch.tensor(temp.to_df().values, dtype=torch.float32).to(self.model.device))
         else:
             explainer = shap.Explainer(ce.model, df)
-
-
-        # Compute SHAP values
-        exp = explainer(temp.to_df())
+        
+        if 'Neural' not in self.model_name:
+            exp = explainer(temp.to_df())
 
         if isinstance(exp, list):
             exp = exp[1]  # Take class 1 SHAP values
@@ -201,8 +209,9 @@ class SHAPVisualizer:
             plt.savefig(plot_path, dpi=300)
             plt.close()
             print(f"Waterfall plot saved to {plot_path}")
-        else:
-            plt.show()
+        
+        plt.show()
+        plt.close()
 
 
     def _create_mean_df(self):

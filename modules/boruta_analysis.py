@@ -52,21 +52,18 @@ class BorutaAnalyzer:
             dict: Dictionary of chosen features.
             pd.DataFrame (optional): Prediction results on test AnnData if provided.
         """
-        if self.model_name not in ['XGBClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
+        if self.model_name not in ['XGBoostClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
             raise ValueError(f"Model {self.model_name} is not supported for Boruta analysis.")
 
         # Validate AnnData and columns
         validate_anndata(self.adata, [self.response_col, self.sample_col])
         validate_response_column(self.adata, self.response_col)
-
-        if self.celltype:
-            adata = adata[adata.obs[self.celltype] == 1]
-
+        
         # Filter by cluster column if provided
         adata = self.adata
-        if cluster_col:
-            validate_anndata(adata, [cluster_col])
-            adata = adata[adata.obs[cluster_col] == 1]
+        
+        if self.celltype:
+            adata = adata[adata.obs[self.celltype] == 1]
 
         # Prepare data for Boruta
         X = adata.to_df().values

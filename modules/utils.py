@@ -1,4 +1,3 @@
-import numpy as np
 DPI = 300 
 TITLE_FONT_SIZE = 10
 AXIS_LABELS_FONT_SIZE = 9

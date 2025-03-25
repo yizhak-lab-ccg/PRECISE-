@@ -93,11 +93,18 @@ class PredictionAnalyzer:
         estimator = copy.deepcopy(self.model)
         estimator.fit(X_train, y_train)
 
-        # Save feature importances
-        feature_importance_df = pd.DataFrame({
-            "Feature": X_train.columns,
-            "Importance": estimator.get_feature_importances()
-        }).sort_values(by="Importance", ascending=False)
+
+        feature_importance_df = None
+        if hasattr(estimator, "feature_importances_") and estimator.feature_importances_ is not None:
+            # Extract feature names from adata.var if available
+            feature_names = train_adata.var_names.tolist()  # Feature names from adata
+
+            # Create a DataFrame with feature importances
+            feature_importance_df = pd.DataFrame({
+                "Feature": feature_names,
+                "Importance": estimator.feature_importances_,
+            }).sort_values(by="Importance", ascending=False)
+
 
         # Iterate over samples in the test data
         for sample in test_adata.obs[self.sample_column].unique():
@@ -150,7 +157,7 @@ class PredictionAnalyzer:
             print(f"Sample column: {self.sample_column}, Target column: {self.target_column}.")
         adata = self.adata
         # Extract sample-level labels
-        sample_labels = adata.obs.groupby(sample_column)[response_column].mean()
+        sample_labels = adata.obs.groupby(sample_column, observed=False)[response_column].mean()
         sample_names = sample_labels.index
         sample_responses = sample_labels.values
 
@@ -175,6 +182,8 @@ class PredictionAnalyzer:
 
         adata.obs['prediction'] = -1
         adata.obs['proba_prediction'] = -1
+        adata.obs["proba_prediction"] = adata.obs["proba_prediction"].astype("float64")
+
         for fold_idx, (train_idx, test_idx) in enumerate(cv.split(sample_names, sample_responses)):
             train_samples = sample_names[train_idx]
             test_samples = sample_names[test_idx]
@@ -214,15 +223,15 @@ class PredictionAnalyzer:
             test_set.obs["prediction"] = y_pred
 
             # Append results to the main AnnData object
-            adata.obs.loc[test_set.obs.index, "proba_prediction"] = y_pred_prob
-            adata.obs.loc[test_set.obs.index, "prediction"] = y_pred
+            adata.obs.loc[test_set.obs.index, "proba_prediction"] = y_pred_prob.astype("float")
+            adata.obs.loc[test_set.obs.index, "prediction"] = y_pred.astype("int")
 
             prediction_column = "prediction"
             if weighted_prediction:
                 prediction_column = "proba_prediction"
             
-            mean_score_per_sample = test_set.obs.groupby(sample_column)[prediction_column].mean()
-            mean_label_per_sample = test_set.obs.groupby(sample_column)[response_column].mean()
+            mean_score_per_sample = test_set.obs.groupby(sample_column, observed=False)[prediction_column].mean()
+            mean_label_per_sample = test_set.obs.groupby(sample_column, observed=False)[response_column].mean()
 
             sample_scores.extend(mean_score_per_sample)
             sample_labels.extend(mean_label_per_sample)
@@ -257,7 +266,7 @@ class PredictionAnalyzer:
             colormap (str or Colormap): Colormap for the bars (uses default if None).
             save_path (str): Path to save the plot.
         """
-        if hasattr(self.model, 'feature_importances_'):
+        if not hasattr(self.model, 'feature_importances_'):
             raise NotImplementedError("The model does not support feature importances.")
         top_n_features = top_n_features.sort_values(by="Importance", ascending=False)
         norm = plt.Normalize(top_n_features["Importance"].min(), top_n_features["Importance"].max())
@@ -284,7 +293,7 @@ class PredictionAnalyzer:
         """
         Generate feature importance and intersection plots using default settings.
         """
-        if hasattr(self.model, 'feature_importances_'):
+        if not hasattr(self.model, 'feature_importances_'):
             raise NotImplementedError("The model does not support feature importances.")
         try:
             files = os.listdir(self.importance_folder)
@@ -352,7 +361,7 @@ class PredictionAnalyzer:
         Returns:
         - set: A set of intersecting features containing at least k features.
         """
-        if hasattr(self.model, 'feature_importances_'):
+        if not hasattr(self.model, 'feature_importances_'):
             raise NotImplementedError("The model does not support feature importances.")
         try:
             # Validate importance folder
