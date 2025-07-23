@@ -115,7 +115,7 @@ refined_adata = precise.run_reinforcement_learning(chosen_features=chosen_featur
 precise.run_shap_visualizations(top_k=20)
 
 # Step 4: Leave-One-Out (LOO) prediction
-results, auc_score = precise.run_loo_prediction()
+results, auc_score = precise.cv_prediction()
 print(f"LOO ROC AUC: {auc_score:.3f}")
 ```
 
