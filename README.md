@@ -1,7 +1,7 @@
 
 # Precise: Predictive Response Analysis from Single-Cell Expression
 
-[![DOI](https://img.shields.io/badge/bioRxiv-10.1101%2F2024.11.16.623986v1-blue)](https://www.biorxiv.org/content/10.1101/2024.11.16.623986v1)
+[![DOI](https://img.shields.io/badge/Published%20in-npj%20Precision%20Oncology-blue)](https://www.nature.com/articles/s41698-025-00883-z)
 
 **Precise** is a Python-based computational framework for analyzing single-cell RNA sequencing (scRNA-seq) data to predict immune checkpoint inhibitor (ICI) responses. It integrates advanced feature selection, machine learning, and reinforcement learning methodologies, offering a streamlined workflow for both exploratory data analysis and predictive modeling.
 
@@ -24,7 +24,8 @@ The framework is designed for researchers working in immunotherapy, oncology, an
 ---
 
 ## Background
-Precise builds upon methods described in our preprint on bioRxiv: [10.1101/2024.11.16.623986v1](https://www.biorxiv.org/content/10.1101/2024.11.16.623986v1). It leverages single-cell data to:
+Precise builds upon methods described in our publication in *npj Precision Oncology*: [10.1038/s41698-025-00883-z](https://www.nature.com/articles/s41698-025-00883-z).
+It leverages single-cell data to:
 - Select features (genes) relevant to ICI response using **Boruta**.
 - Visualize feature importance via **SHAP** analysis.
 - Generate predictions using **XGBoost**.
@@ -40,8 +41,8 @@ Precise builds upon methods described in our preprint on bioRxiv: [10.1101/2024.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/asafpinhasitechnion/precise.git
-cd precise
+git clone https://github.com/yizhak-lab-ccg/PRECISE-.git
+cd PRECISE-
 ```
 
 2. Create and activate the environment:
@@ -55,7 +56,7 @@ conda activate precise_env
 ## Usage
 
 ### Workflow Overview
-1. Preprocess your scRNA-seq data into an [AnnData](https://anndata.readthedocs.io/en/latest/) object.
+1. Prepare your scRNA-seq data as an [AnnData](https://anndata.readthedocs.io/en/latest/) before inputting it into Precise.
 2. Run feature selection, modeling, and visualization using **Precise**.
 
 ### Key Modules
@@ -81,7 +82,7 @@ The primary input is an `AnnData` object, with the following `.obs` columns:
 - `response`: Binary labels indicating response (`1`) or non-response (`0`).
 - `sample`: Unique identifiers for samples.
 
-Ensure the data is preprocessed (e.g., log-normalized, variable features selected) before using Precise.
+Ensure the data is preprocessed (e.g., log-normalized, features selected) before using Precise.
 
 ---
 
@@ -121,5 +122,6 @@ print(f"LOO ROC AUC: {auc_score:.3f}")
 ---
 
 ## Citation
-If you use **Precise** in your research, please cite our bioRxiv preprint:
-> Pinhasi, Y., & Yizhak, K. (2024). Precise: Predictive Response Analysis from Single-Cell Expression. bioRxiv. https://doi.org/10.1101/2024.11.16.623986v1
+If you use **Precise** in your research, please cite our published article:
+
+Pinhasi, Y., & Yizhak, K. (2025). Precise: Predictive Response Analysis from Single-Cell Expression. npj Precision Oncology, https://doi.org/10.1038/s41698-025-00883-z
