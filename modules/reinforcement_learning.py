@@ -33,6 +33,7 @@ class ReinforcementLearningAnalyzer:
     def run_reinforcement_learning(
         self,
         chosen_features=["GZMH", "LGALS1", "GBP5", "HLA-DRB5", "CCR7", "IFI6", "GAPDH", "HLA-B", "EPSTI1", "CD38", "STAT1"],
+        celltype=None,
         n_iters=200,
         learning_rate=0.1,
     ):
@@ -44,9 +45,21 @@ class ReinforcementLearningAnalyzer:
 
         adata = self.adata
 
-        # Subset by cell type if provided
-        if self.celltype:
-            adata = adata[adata.obs[self.celltype] == 1]
+        if celltype is None and self.celltype is not None:
+            celltype = self.celltype
+        
+        if celltype:
+            if celltype not in adata.obs.columns:
+                print(f"[WARNING] Cell type '{celltype}' not found in adata.obs columns. "
+                    f"When using 'celltype' parameter, '{celltype}' must be a boolean or 0/1 column in obs.")
+                print(f"[WARNING] Using all cells for RL analysis.")
+            elif adata.obs[celltype].dtype == bool or set(adata.obs[celltype].unique()) <= {0, 1}:
+                if self.verbose:
+                    print(f"Filtering for cell type: {celltype}.")
+                adata = adata[adata.obs[celltype].astype(int) == 1]
+            else:
+                print(f"[WARNING] Column '{celltype}' is not boolean or 0/1. Using all cells.")
+
 
         validate_anndata(self.adata, [self.target_column, self.sample_column])
         validate_response_column(self.adata, self.target_column)
@@ -101,7 +114,7 @@ class ReinforcementLearningAnalyzer:
             )
 
         # Save results
-        cluster_name = self.celltype.replace(' ', '_') if self.celltype else "all_cells"
+        cluster_name = celltype.replace(' ', '_') if celltype else "all_cells"
         results_dir = self.output_dir
         os.makedirs(results_dir, exist_ok=True)
 
@@ -117,11 +130,13 @@ class ReinforcementLearningAnalyzer:
 
         return adata
 
-    def plot_reinforcement_labels_distribution(self, iter=None, log_scale=False, save_plots=True):
+    def plot_reinforcement_labels_distribution(self, iter=None, log_scale=False, save_plots=True, celltype=None):
         """
         Plot the distribution of reinforcement learning predictions.
         """
-        cluster_name = self.celltype.replace(' ', '_') if self.celltype else "all_cells"
+        if celltype is None and self.celltype is not None:
+            celltype = self.celltype
+        cluster_name = celltype.replace(' ', '_') if celltype else "all_cells"
         labels_file = os.path.join(self.output_dir, f"{cluster_name}_rl_labels.json")
 
         # Load RL predictions from the JSON file

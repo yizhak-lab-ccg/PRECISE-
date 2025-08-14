@@ -135,7 +135,7 @@ class PredictionAnalyzer:
         - auc_score: Overall AUC score.
         - estimators: List of trained estimators.
         """
-        if verbose is None:
+        if not verbose:
             verbose = self.verbose
         
         # Ensure output directory for feature importances exists
@@ -147,15 +147,24 @@ class PredictionAnalyzer:
 
         celltype = self.celltype if celltype is None else celltype
         adata = self.adata.copy()
-        if celltype:
-            if self.verbose:
-                print(f"Filtering for cell type: {celltype}.")
-            adata = adata[adata.obs[celltype] == 1]           
 
-        if self.verbose:
+
+        if celltype:
+            if celltype not in adata.obs.columns:
+                print(f"[WARNING] Cell type '{celltype}' not found in adata.obs columns. "
+                    f"When using 'celltype' parameter, '{celltype}' must be a boolean or 0/1 column in obs.")
+                print(f"[WARNING] Using all cells for cv_prediction.")
+            elif adata.obs[celltype].dtype == bool or set(adata.obs[celltype].unique()) <= {0, 1}:
+                if verbose:
+                    print(f"Filtering for cell type: {celltype}.")
+                adata = adata[adata.obs[celltype].astype(int) == 1]
+            else:
+                print(f"[WARNING] Column '{celltype}' is not boolean or 0/1. Using all cells.")
+
+        if verbose:
             print(f"Starting LOO Prediction with {adata.shape[0]} cells and {adata.shape[1]} features.")
             print(f"Sample column: {self.sample_column}, Target column: {self.target_column}.")
-        adata = self.adata
+        
         # Extract sample-level labels
         sample_labels = adata.obs.groupby(sample_column, observed=False)[response_column].mean()
         sample_names = sample_labels.index
@@ -237,9 +246,18 @@ class PredictionAnalyzer:
             sample_labels.extend(mean_label_per_sample)
             results.extend([(fold_idx + 1, sample, label, score) for sample, label, score in zip(mean_score_per_sample.index, mean_label_per_sample, mean_score_per_sample)])
 
+            # if verbose:
+            #     print(f"Fold {fold_idx + 1}: Processed {len(mean_score_per_sample)} samples.")
+            #     print(mean_score_per_sample.index, mean_label_per_sample, mean_score_per_sample)
             if verbose:
-                print(f"Fold {fold_idx + 1}: Processed {len(mean_score_per_sample)} samples.")
-                print(mean_score_per_sample.index, mean_label_per_sample, mean_score_per_sample)
+                print(f"\n=== Fold {fold_idx + 1} ===")
+                print(f"Processed {len(mean_score_per_sample)} samples")
+                print("Sample\tLabel\tScore")
+                for sample, label, score in zip(mean_score_per_sample.index,
+                                                mean_label_per_sample,
+                                                mean_score_per_sample):
+                    print(f"{sample}\t{label}\t{score:.4f}")
+
 
         # Save results
         results_df = pd.DataFrame(results, columns=["Fold", "Sample", "Label", "Score"])

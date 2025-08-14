@@ -21,6 +21,7 @@ The framework is designed for researchers working in immunotherapy, oncology, an
 - [Example](#example)
 - [Citation](#citation)
 
+
 ---
 
 ## Background
@@ -81,8 +82,8 @@ conda activate precise_env
 The primary input is an `AnnData` object, with the following `.obs` columns:
 - `response`: Binary labels indicating response (`1`) or non-response (`0`).
 - `sample`: Unique identifiers for samples.
-
-Ensure the data is preprocessed (e.g., log-normalized, features selected) before using Precise.
+Optional:
+- `celltype` (optional): A column name corresponding to a cell type (boolean or 1/0 values) used for cell-type–specific analyses.
 
 ---
 

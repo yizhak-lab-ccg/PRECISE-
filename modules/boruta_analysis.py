@@ -31,20 +31,17 @@ class BorutaAnalyzer:
 
     def run_boruta(
         self,
-        cluster_col=None,
         test_adata=None,
+        celltype = None,
         subset_features=False,
-        estimator=None,
         importance_file="boruta_chosen_features.json",
     ):
         """
         Run Boruta feature selection and optionally make predictions.
 
         Parameters:
-            cluster_col (str, optional): Filter for a specific cluster if provided.
             test_adata (AnnData, optional): Test AnnData object to make predictions.
             subset_features (bool): If True, returns a subsetted AnnData with selected features.
-            estimator (sklearn.BaseEstimator, optional): Custom estimator to use in Boruta. Defaults to XGBoostClassifier.
             importance_file (str): Path to save selected features as a JSON file.
 
         Returns:
@@ -54,7 +51,9 @@ class BorutaAnalyzer:
         """
         if self.model_name not in ['XGBoostClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
             raise ValueError(f"Model {self.model_name} is not supported for Boruta analysis.")
-
+        
+        if celltype is None and self.celltype is not None:
+            celltype = self.celltype
         # Validate AnnData and columns
         validate_anndata(self.adata, [self.response_col, self.sample_col])
         validate_response_column(self.adata, self.response_col)
@@ -62,9 +61,19 @@ class BorutaAnalyzer:
         # Filter by cluster column if provided
         adata = self.adata
         
-        if self.celltype:
-            adata = adata[adata.obs[self.celltype] == 1]
+        if celltype:
+            if celltype not in adata.obs.columns:
+                print(f"[WARNING] Cell type '{celltype}' not found in adata.obs columns. "
+                    f"When using 'celltype' parameter, '{celltype}' must be a boolean or 0/1 column in obs.")
+                print(f"[WARNING] Using all cells for Boruta analysis.")
+            elif adata.obs[celltype].dtype == bool or set(adata.obs[celltype].unique()) <= {0, 1}:
+                if self.verbose:
+                    print(f"Filtering for cell type: {celltype}.")
+                adata = adata[adata.obs[celltype].astype(int) == 1]
+            else:
+                print(f"[WARNING] Column '{celltype}' is not boolean or 0/1. Using all cells.")
 
+        print(f"Selecting features with {adata.shape[0]} cells from {adata.obs[self.sample_col].nunique()} samples.")
         # Prepare data for Boruta
         X = adata.to_df().values
         y = adata.obs[self.response_col].values
@@ -90,7 +99,7 @@ class BorutaAnalyzer:
             "confirmed": list(adata.var_names[feat_selector.support_]),
             "tentative": list(adata.var_names[feat_selector.support_weak_]),
         }
-        cluster_name = self.celltype.replace(' ','_') if self.celltype else "all_cells"
+        cluster_name = celltype.replace(' ','_') if celltype else "all_cells"
         importance_path = os.path.join(self.output_dir, cluster_name+'_'+importance_file)
         with open(importance_path, "w") as f:
             json.dump(chosen_features, f)

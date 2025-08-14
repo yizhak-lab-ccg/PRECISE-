@@ -24,6 +24,8 @@ class Precise:
         self.sample_column = sample_column
         self.model_name = model_name
         self.celltype = celltype
+        if isinstance(args, dict):
+            args = argparse.Namespace(**args)
         self.args = args or argparse.Namespace()
         self.weighted_prediction = weighted_prediction
         defaults = {
@@ -34,11 +36,12 @@ class Precise:
             "k_folds": None,
             "verbose": False,
             "weighted_prediction": weighted_prediction,
-            'cell_type': None,
+            'celltype': None,
             "input_dim": self.adata.shape[1],  # Set input dimension dynamically
             'use_gpu': False,
             'model_name': model_name
         }
+        
         
         for key, default_value in defaults.items():
             setattr(self.args, key, getattr(self.args, key, default_value))
@@ -89,7 +92,16 @@ class Precise:
         """
         Run the Boruta analysis.
         """
-        self.boruta_analyzer = BorutaAnalyzer(self.adata, output_dir=self.output_dir, verbose=verbose)
+
+        self.boruta_analyzer = BorutaAnalyzer(self.adata,
+            model=self.model,
+            model_name=self.model_name,
+            celltype=self.celltype,
+            response_col=self.target_column,
+            output_dir=self.output_dir,
+            sample_column=self.sample_column,
+            verbose=self.args.verbose)
+        # self.boruta_analyzer = BorutaAnalyzer(self.adata, output_dir=self.output_dir, verbose=verbose)
         return self.boruta_analyzer.run_boruta()
 
     def run_reinforcement_learning(self, model_name = None, chosen_features=None, n_iters=200, learning_rate=0.1, verbose = False):
@@ -282,10 +294,11 @@ def create_output_folder(base_folder, args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Precise analysis pipeline")
-    parser.add_argument("--adata_path", type=str, required=True, help="Path to the AnnData file (H5AD format)")
-    # parser.add_argument("--adata_path", type=str, default='examples/sample_melanoma_adata.h5ad', required=False, help="Path to the AnnData file (H5AD format)")
+    # parser.add_argument("--adata_path", type=str, required=True, help="Path to the AnnData file (H5AD format)")
+    parser.add_argument("--adata_path", type=str, default='examples/sample_melanoma_adata.h5ad', required=False, help="Path to the AnnData file (H5AD format)")
     parser.add_argument("--output_folder", type=str, default="./results", help="Path to the results folder")
     parser.add_argument("--model_name", type=str, default="XGBoostClassifier", help="Model name to use")
+    parser.add_argument("--celltype", type=str, default='T cells', help="Subset by cell type")
     parser.add_argument("--max_depth", type=int, default=None, help="Maximum depth of the model")
     parser.add_argument("--learning_rate", type=float, default=None, help="Learning rate for the model")
     parser.add_argument("--epochs", type=int, default=None, help="Number of epochs for training neural networks")
@@ -296,6 +309,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_gpu", action="store_true", help="Use GPU for XGBoost (see explanation in Git)")
 
     args = parser.parse_args()
+    args.verbose=True
     
     # Load AnnData
     adata = sc.read_h5ad(args.adata_path)
@@ -305,7 +319,7 @@ if __name__ == "__main__":
     os.makedirs(args.output_folder, exist_ok=True)
     
     # Initialize Precise and run CV prediction
-    precise = Precise(adata, model_name=args.model_name, output_dir=args.output_folder, target_column="response", sample_column="sample", args=args)
+    precise = Precise(adata, model_name=args.model_name, output_dir=args.output_folder, target_column="response", sample_column="sample", celltype=args.celltype, args=args)
     
     prediction_results = precise.cv_prediction(k_folds=args.k_folds)
     results_df, auc_score, estimators = prediction_results
