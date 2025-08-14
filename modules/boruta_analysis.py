@@ -21,7 +21,7 @@ class BorutaAnalyzer:
         self.model = model
         self.model_name = model_name
         self.celltype = celltype
-        self.output_dir = output_dir
+        self.output_dir = output_dir if not celltype else os.path.join(output_dir, celltype)
         self.response_col = response_col
         self.sample_col = sample_col
         self.verbose = verbose

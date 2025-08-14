@@ -31,9 +31,9 @@ class PredictionAnalyzer:
         self.adata = adata
         self.target_column = target_column
         self.sample_column = sample_column
-        self.results_folder = results_folder
         self.celltype = celltype
-        self.plots_folder = os.path.join(results_folder, plots_folder)
+        self.results_folder = results_folder if celltype is None else os.path.join(results_folder, celltype)
+        self.plots_folder = os.path.join(self.results_folder, plots_folder)
         self.importance_folder = os.path.join(results_folder, "importance_scores_" +celltype if celltype else "importance_scores")
         self.verbose = verbose
         self.model_name = model_name
@@ -118,23 +118,51 @@ class PredictionAnalyzer:
         return (scores, feature_importance_df)
 
 
-    def cv_prediction(self, k_folds=None, seed=None, weighted_prediction = False, sample_column = 'sample_name', response_column = 'response', celltype = None, save_adata_with_predictions = False, verbose=None):
+    def cv_prediction(
+        self,
+        k_folds=None,
+        seed=None,
+        weighted_prediction=False,
+        sample_column='sample_name',
+        response_column='response',
+        celltype=None,
+        save_adata_with_predictions=False,
+        verbose=None
+    ):
         """
-        Perform either K-Fold cross-validation or Leave-One-Out (LOO) prediction with stratification
+        Perform cross-validation or Leave-One-Out (LOO) prediction with stratification 
         at the sample level for binary classification.
 
-        Parameters:
-        - adata: AnnData object containing single-cell data.
-        - output_folder: Path to the output folder.
-        - k_folds: Number of folds for cross-validation (default: None, which uses LOO).
-        - seed: Random seed for reproducibility (default: None).
-        - verbose: Whether to print progress and results (default: True).
+        Parameters
+        ----------
+        k_folds : int or None, optional
+            Number of folds for cross-validation. If None, Leave-One-Out (LOO) is used.
+        seed : int or None, optional
+            Random seed for reproducibility.
+        weighted_prediction : bool, optional
+            If True, sample contributions are weighted by probabilities.
+        sample_column : str, optional
+            Column in `adata.obs` containing sample identifiers (default: 'sample_name').
+        response_column : str, optional
+            Column in `adata.obs` containing the binary response variable (default: 'response').
+        celltype : str or None, optional
+            Name of a boolean or 0/1 column in `adata.obs` to subset a specific cell type 
+            (allows overlapping subsets, e.g., T cells and CD8 T cells). If None, all cells are used.
+        save_adata_with_predictions : bool, optional
+            If True, saves the `AnnData` object with prediction results in `adata.obs`.
+        verbose : bool or None, optional
+            If True, prints progress and fold-level summaries.
 
-        Returns:
-        - results_df: DataFrame containing fold-level results.
-        - auc_score: Overall AUC score.
-        - estimators: List of trained estimators.
+        Returns
+        -------
+        results_df : pandas.DataFrame
+            DataFrame containing fold-level results for each sample.
+        auc_score : float
+            Overall AUC score across all folds.
+        estimators : list
+            List of trained estimators for each fold.
         """
+
         if not verbose:
             verbose = self.verbose
         
@@ -146,6 +174,10 @@ class PredictionAnalyzer:
         validate_response_column(self.adata, self.target_column)
 
         celltype = self.celltype if celltype is None else celltype
+        results_folder = self.results_folder
+        if celltype:
+            results_folder = os.path.join(self.results_folder, celltype)
+            os.makedirs(results_folder, exist_ok=True)
         adata = self.adata.copy()
 
 
@@ -261,7 +293,7 @@ class PredictionAnalyzer:
 
         # Save results
         results_df = pd.DataFrame(results, columns=["Fold", "Sample", "Label", "Score"])
-        results_file = os.path.join(self.results_folder, "loo_results.csv" if k_folds is None else "kfold_results.csv")
+        results_file = os.path.join(results_folder, "loo_results.csv" if k_folds is None else "kfold_results.csv")
         results_df.to_csv(results_file, index=False)
 
         # Calculate overall AUC
@@ -271,7 +303,7 @@ class PredictionAnalyzer:
         if save_adata_with_predictions:
             adata.obs['prediction'] = adata.obs['prediction'].astype('int')
             adata.obs['proba_prediction'] = adata.obs['proba_prediction'].astype('float')
-            adata.write(os.path.join(self.results_folder, 'adata_with_prediction.h5ad'))
+            adata.write(os.path.join(results_folder, 'adata_with_prediction.h5ad'))
         return (results_df, auc_score, estimators)
 
 

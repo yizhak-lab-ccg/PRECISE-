@@ -22,10 +22,10 @@ class ReinforcementLearningAnalyzer:
         self.adata = adata.copy()
         self.model = model
         self.model_name = model_name
-        self.output_dir = output_dir
-        self.plots_dir = os.path.join(output_dir, plots_dir)
-        self.verbose = verbose
         self.celltype = celltype
+        self.output_dir = output_dir if not celltype else os.path.join(output_dir, celltype)
+        self.plots_dir = os.path.join(self.output_dir, plots_dir)
+        self.verbose = verbose
         self.target_column=target_column
         self.sample_column=sample_column
         

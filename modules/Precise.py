@@ -19,11 +19,11 @@ class Precise:
         Initialize Precise with AnnData and configurations.
         """
         self.adata = adata
+        self.celltype = celltype
         self.output_dir = output_dir
         self.target_column = target_column
         self.sample_column = sample_column
         self.model_name = model_name
-        self.celltype = celltype
         if isinstance(args, dict):
             args = argparse.Namespace(**args)
         self.args = args or argparse.Namespace()
@@ -34,7 +34,7 @@ class Precise:
             "epochs": None,
             "seed": 42,
             "k_folds": None,
-            "verbose": False,
+            "verbose": True,
             "weighted_prediction": weighted_prediction,
             'celltype': None,
             "input_dim": self.adata.shape[1],  # Set input dimension dynamically
@@ -99,7 +99,7 @@ class Precise:
             celltype=self.celltype,
             response_col=self.target_column,
             output_dir=self.output_dir,
-            sample_column=self.sample_column,
+            sample_col=self.sample_column,
             verbose=self.args.verbose)
         # self.boruta_analyzer = BorutaAnalyzer(self.adata, output_dir=self.output_dir, verbose=verbose)
         return self.boruta_analyzer.run_boruta()
