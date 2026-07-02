@@ -55,7 +55,7 @@ class Precise:
         self.args.input_dim = self.adata.shape[1]  # Set input dimension
         self.model = get_model(self.model_name, self.args)
         model = copy.deepcopy(self.model)
-        self.shap_visualizer = SHAPVisualizer(self.adata, model.model if isinstance(model, SklearnModelWrapper) else model, self.model_name, self.args, output_dir=self.output_dir)
+        self.shap_visualizer = SHAPVisualizer(self.adata, model.model if isinstance(model, SklearnModelWrapper) else model, self.model_name, self.args, output_dir=self.output_dir, target_column=self.target_column, sample_column=self.sample_column)
         self.prediction_analyzer = PredictionAnalyzer(
             self.adata,
             model=model,
@@ -66,8 +66,8 @@ class Precise:
             results_folder=self.output_dir,
             verbose=self.args.verbose
         )
-        self.boruta_analyzer = BorutaAnalyzer(self.adata, model, model_name, self.celltype, output_dir=self.output_dir, verbose=self.args.verbose)
-        self.rl_analyzer = ReinforcementLearningAnalyzer(self.adata, model, model_name, output_dir=self.output_dir, verbose=self.args.verbose)
+        self.boruta_analyzer = BorutaAnalyzer(self.adata, model, model_name, self.celltype, output_dir=self.output_dir, response_col=self.target_column, sample_col=self.sample_column, verbose=self.args.verbose)
+        self.rl_analyzer = ReinforcementLearningAnalyzer(self.adata, model, model_name, output_dir=self.output_dir, target_column=self.target_column, sample_column=self.sample_column, celltype=self.celltype, verbose=self.args.verbose)
     
     def cv_prediction(self, k_folds=None, seed = 42, verbose = None):
         """
@@ -114,7 +114,7 @@ class Precise:
             chosen_features (list): Features to include in RL analysis.
         """
         model = get_model(self.args.model_name, self.args, is_regressor=True)
-        self.rl_analyzer = ReinforcementLearningAnalyzer(self.adata, model, self.args.model_name.replace('Classifier', ''), output_dir=self.output_dir, verbose=verbose)
+        self.rl_analyzer = ReinforcementLearningAnalyzer(self.adata, model, self.args.model_name.replace('Classifier', ''), output_dir=self.output_dir, target_column=self.target_column, sample_column=self.sample_column, celltype=self.celltype, verbose=verbose)
         return self.rl_analyzer.run_reinforcement_learning(n_iters=n_iters, learning_rate=learning_rate, chosen_features=chosen_features)
     
     def get_rl_distribution(self, iter = None):
@@ -129,7 +129,7 @@ class Precise:
         """
         if not model:
             model = get_model(self.model_name, self.args, is_regressor=True)
-        self.shap_visualizer = SHAPVisualizer(self.adata, model.model if isinstance(model, SklearnModelWrapper) else model, self.model_name, self.args, output_dir=self.output_dir)
+        self.shap_visualizer = SHAPVisualizer(self.adata, model.model if isinstance(model, SklearnModelWrapper) else model, self.model_name, self.args, output_dir=self.output_dir, target_column=self.target_column, sample_column=self.sample_column)
         self.shap_visualizer.shapely_score_barplot(top_k=top_k, save_path = os.path.join(save_path, 'shap_barplot.png') if save_path else None)
         self.shap_visualizer.shap_summary_plot(max_display=top_k, save_path=os.path.join(save_path, 'summary_plot.png') if save_path else None)
 
@@ -152,7 +152,7 @@ class Precise:
         sc.pp.highly_variable_genes(self.adata, n_top_genes=n_top_genes, inplace=True)
         self.adata = self.adata[:, self.adata.var['highly_variable']]
         model = copy.deepcopy(self.model)
-        self.shap_visualizer = SHAPVisualizer(self.adata, model.model if isinstance(model, SklearnModelWrapper) else model, self.model_name, self.args, output_dir=self.output_dir)
+        self.shap_visualizer = SHAPVisualizer(self.adata, model.model if isinstance(model, SklearnModelWrapper) else model, self.model_name, self.args, output_dir=self.output_dir, target_column=self.target_column, sample_column=self.sample_column)
         self.prediction_analyzer = PredictionAnalyzer(
             self.adata,
             model=model,
@@ -163,7 +163,7 @@ class Precise:
             results_folder=self.output_dir,
             verbose=self.args.verbose
         )
-        self.boruta_analyzer = BorutaAnalyzer(self.adata, model, self.model_name, self.celltype, output_dir=self.output_dir, verbose=self.args.verbose)
+        self.boruta_analyzer = BorutaAnalyzer(self.adata, model, self.model_name, self.celltype, output_dir=self.output_dir, response_col=self.target_column, sample_col=self.sample_column, verbose=self.args.verbose)
 
 
     def prune_decision_tree(self, max_depth=4, min_samples_leaf=20, random_state=42, save_path = None):
