@@ -123,7 +123,7 @@ class PredictionAnalyzer:
         k_folds=None,
         seed=None,
         weighted_prediction=False,
-        sample_column='sample_name',
+        sample_column='sample',
         response_column='response',
         celltype=None,
         save_adata_with_predictions=False,
@@ -142,7 +142,7 @@ class PredictionAnalyzer:
         weighted_prediction : bool, optional
             If True, sample contributions are weighted by probabilities.
         sample_column : str, optional
-            Column in `adata.obs` containing sample identifiers (default: 'sample_name').
+            Column in `adata.obs` containing sample identifiers (default: 'sample').
         response_column : str, optional
             Column in `adata.obs` containing the binary response variable (default: 'response').
         celltype : str or None, optional

@@ -43,8 +43,14 @@ class SHAPVisualizer:
         if self.model_name in ['XGBoostClassifier', 'LightGBMClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier']:
             self.explainer = shap.TreeExplainer(model)
             self.shap_values = self.explainer.shap_values(self.df)
-            if self.model_name == 'LightGBMClassifier':
+            # Normalize multi-class SHAP output to a 2D (cells x genes) array for the
+            # positive class. Depending on the model / SHAP version this comes back as
+            # a list (one array per class) or a 3D array (cells x genes x classes),
+            # while binary XGBoost returns a 2D array that is left untouched.
+            if isinstance(self.shap_values, list):
                 self.shap_values = self.shap_values[1]
+            elif isinstance(self.shap_values, np.ndarray) and self.shap_values.ndim == 3:
+                self.shap_values = self.shap_values[:, :, 1]
         
         elif 'Neural' in self.model_name:
             tensor_df = torch.tensor(self.df.values, dtype=torch.float32, device=device)
