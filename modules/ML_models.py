@@ -28,7 +28,7 @@ class SklearnModelWrapper(BaseEstimator):
     def fit(self, X, y):
         """Convert data to GPU tensors before fitting."""
         if isinstance(self.model, (xgb.XGBRegressor, xgb.XGBClassifier)) and self.use_gpu:
-            # ✅ Convert X and y to PyTorch tensors and keep on GPU
+            # Convert X and y to PyTorch tensors and keep on GPU
             X_tensor = torch.as_tensor(X.toarray(), dtype=torch.float32, device="cuda") if hasattr(X, "toarray") else torch.as_tensor(X, dtype=torch.float32, device="cuda")
             y_tensor = torch.as_tensor(y, dtype=torch.float32, device="cuda")
 
@@ -68,41 +68,6 @@ class SklearnModelWrapper(BaseEstimator):
     def score(self, X, y):
         """Use appropriate scoring metric depending on model type."""
         return self.model.score(X, y)
-
-
-
-# class SklearnModelWrapper(BaseEstimator):
-#     def __init__(self, model, is_regressor=False):
-#         self.model = model
-#         self.feature_importances_ = None
-#         self.is_regressor = is_regressor
-
-#     def fit(self, X, y):
-#         self.model.fit(X, y)
-#         if hasattr(self.model, "coef_"):
-#             self.feature_importances_ = self.model.coef_.flatten()
-#         elif hasattr(self.model, "feature_importances_"):
-#             self.feature_importances_ = self.model.feature_importances_
-#         else:
-#             self.feature_importances_ = None
-
-#     def predict(self, X):
-#         """Predict outputs, handling both classification and regression."""
-#         y_pred = self.model.predict(X)
-#         return y_pred if self.is_regressor else y_pred.astype(int)
-
-#     def predict_proba(self, X):
-#         """Predict probabilities for classifiers; return predictions for regressors."""
-#         if self.is_regressor:
-#             return self.predict(X)  # Regression models don't have probability outputs
-#         if hasattr(self.model, "predict_proba"):
-#             return self.model.predict_proba(X)[:, 1]
-#         else:
-#             raise NotImplementedError("This model does not support probability predictions.")
-
-#     def score(self, X, y):
-#         """Use appropriate scoring metric depending on model type."""
-#         return self.model.score(X, y)
 
 
 class PytorchModelWrapper(BaseEstimator):
@@ -211,16 +176,11 @@ def get_model(model_name, args, is_regressor=False):
         "LogisticRegression": SklearnModelWrapper(LogisticRegression(max_iter=1000), is_regressor=is_regressor),
         "RandomForest": SklearnModelWrapper(RandomForestRegressor(max_depth=max_depth, random_state=42), is_regressor=is_regressor) if is_regressor else 
                         SklearnModelWrapper(RandomForestClassifier(max_depth=max_depth, random_state=42), is_regressor=is_regressor),
-        # "XGBoost": SklearnModelWrapper(
-        #     XGBRegressor(max_depth=max_depth, random_state=42, tree_method=tree_method, device=device), use_gpu=use_gpu
-        # ) if is_regressor else SklearnModelWrapper(
-        #     XGBClassifier(max_depth=max_depth, random_state=42, tree_method=tree_method, device=device), use_gpu=use_gpu
-        # ),
         "XGBoost": SklearnModelWrapper(
-            XGBRegressor(max_depth=max_depth, random_state=42, tree_method="gpu_hist" if use_gpu else "hist"), 
+            XGBRegressor(max_depth=max_depth, random_state=42, tree_method=tree_method, device=device), 
             use_gpu=use_gpu, is_regressor=is_regressor
         ) if is_regressor else SklearnModelWrapper(
-            XGBClassifier(max_depth=max_depth, random_state=42, tree_method="gpu_hist" if use_gpu else "hist"), 
+            XGBClassifier(max_depth=max_depth, random_state=42, tree_method=tree_method, device=device), 
             use_gpu=use_gpu, is_regressor=is_regressor
         ),
         "LightGBM": SklearnModelWrapper(
@@ -245,4 +205,3 @@ def get_model(model_name, args, is_regressor=False):
         )
     
     return model_mapping.get(base_name, None)
-
