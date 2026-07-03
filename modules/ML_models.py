@@ -14,9 +14,7 @@ from lightgbm import LGBMClassifier, LGBMRegressor
 # from scipy.sparse import csr_matrix  # Ensure correct type checking
 # from cupyx.scipy.sparse import csr_matrix as csr_gpu
 
-import torch
 import xgboost as xgb
-from sklearn.base import BaseEstimator
 
 class SklearnModelWrapper(BaseEstimator):
     def __init__(self, model, is_regressor=False, use_gpu = False):
@@ -189,7 +187,7 @@ def get_model(model_name, args, is_regressor=False):
             LGBMClassifier(max_depth=max_depth, random_state=42, verbose=-1), is_regressor=is_regressor
         ),
         "LinearRegression": SklearnModelWrapper(LinearRegression(), is_regressor=is_regressor),
-        "DecisionTreeClassifier": SklearnModelWrapper(DecisionTreeClassifier(max_depth=max_depth, random_state=42), is_regressor=is_regressor),
+        "DecisionTree": SklearnModelWrapper(DecisionTreeClassifier(max_depth=max_depth, random_state=42), is_regressor=is_regressor),
     }
 
     if base_name.startswith("NeuralNet_"):
